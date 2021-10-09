@@ -75,20 +75,22 @@ MACRO_TYPE = (macro1, macro2)
 print("Initing device PINS, Key Matrix, Etc...")
 
 # Keyboard Layout
-Keyboard_Layout = [ [ [ macro1(), function_key(), Keycode.K, Keycode.P, Keycode.U, Keycode.Z, Keycode.FIVE, Keycode.ZERO, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A ],
-                      [ Keycode.B, Keycode.G, Keycode.L, Keycode.Q, Keycode.V, Keycode.ONE, Keycode.SIX, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A ],
-                      [ Keycode.C, Keycode.H, Keycode.M, Keycode.R, Keycode.W, Keycode.TWO, Keycode.SEVEN, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A ],
-                      [ Keycode.D, Keycode.I, Keycode.N, Keycode.S, Keycode.X, Keycode.THREE, Keycode.EIGHT, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A ],
-                      [ Keycode.E, Keycode.J, Keycode.O, Keycode.T, Keycode.Y, Keycode.FOUR, Keycode.NINE, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, Keycode.A, macro2() ] ],
+Keyboard_Layout = [ [ [ Keycode.GRAVE_ACCENT, Keycode.ONE, Keycode.TWO, Keycode.THREE, Keycode.FOUR, Keycode.FIVE, Keycode.SIX, Keycode.SEVEN, Keycode.EIGHT, Keycode.NINE, Keycode.ZERO, Keycode.MINUS, Keycode.EQUALS, None, Keycode.BACKSPACE, Keycode.ONE ],
+                      [ Keycode.TAB, None, Keycode.Q, Keycode.W, Keycode.E, Keycode.R, Keycode.T, Keycode.Y, Keycode.U, Keycode.I, Keycode.O, Keycode.P, Keycode.LEFT_BRACKET, Keycode.RIGHT_BRACKET, Keycode.BACKSLASH, Keycode.TWO ],
+                      [ Keycode.CAPS_LOCK , None, Keycode.A, Keycode.S, Keycode.D, Keycode.F, Keycode.G, Keycode.H, Keycode.J, Keycode.K, Keycode.L, Keycode.SEMICOLON, Keycode.QUOTE, Keycode.ENTER, None, Keycode.THREE ],
+                      [ Keycode.LEFT_SHIFT, None, Keycode.Z, Keycode.X, Keycode.C, Keycode.V, Keycode.B, Keycode.N, Keycode.M, Keycode.COMMA, Keycode.PERIOD, Keycode.FORWARD_SLASH, None, Keycode.RIGHT_SHIFT, None, Keycode.FOUR ],
+                      [ Keycode.LEFT_CONTROL, Keycode.LEFT_GUI, Keycode.LEFT_ALT, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, Keycode.RIGHT_GUI, None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, Keycode.FIVE ] ],
                     
-                    [ [ None, function_key(), None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+                    [ [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None] ] ]
 # The Physical Pins
-keyboard_cols = [ board.GP0, board.GP1, board.GP2, board.GP3, board.GP4, board.GP5, board.GP8, board.GP9, board.GP10, board.GP11, board.GP12, board.GP16, board.GP17, board.GP18, board.GP19, board.GP20 ]
-keyboard_rows = [ board.GP21, board.GP22, board.GP26, board.GP27, board.GP28 ]
+#                       COL0       COL1       COL2       COL3       COL4       COL5       COL6       COL7       COL8        COL9        COL10       COL11       COL12       COL13       COL14       COL15
+keyboard_cols = [ board.GP0, board.GP1, board.GP2, board.GP3, board.GP6, board.GP7, board.GP8, board.GP9, board.GP10, board.GP11, board.GP12, board.GP14, board.GP15, board.GP16, board.GP17, board.GP18 ]
+#                       ROW0        ROW1        ROW2        ROW3        ROW4
+keyboard_rows = [ board.GP19, board.GP20, board.GP21, board.GP22, board.GP26 ]
 
 # The Pin Matrix
 keyboard_cols_array = []
@@ -98,7 +100,6 @@ keyboard_rows_array = []
 for pin in keyboard_cols:
     key_pin = digitalio.DigitalInOut(pin)
     key_pin.direction = digitalio.Direction.OUTPUT
-    # key_pin.pull = digitalio.Pull.UP
     key_pin.value = False
     keyboard_cols_array.append(key_pin)
     
@@ -107,7 +108,6 @@ for pin in keyboard_rows:
     key_pin = digitalio.DigitalInOut(pin)
     key_pin.direction = digitalio.Direction.INPUT
     key_pin.pull = digitalio.Pull.DOWN
-    # key_pin.value = True
     keyboard_rows_array.append(key_pin)
 
 print(keyboard_cols_array)
@@ -159,14 +159,14 @@ while True:
         led.value = True
         LED_Count = 0
 
+    state_change = False
+
     # Scan Rows
     col_pin_number = 0
     # Set all Rows
     for col in keyboard_cols_array: 
         # Set the pin to High
         col.value = True
-        # Wait for pin
-        time.sleep(MATRIX_SCAN)
         # Scan Cols
         row_pin_number = 0
         # Read all Cols
@@ -175,50 +175,57 @@ while True:
             if ( row.value == True ):
                 # If the pin is low, add to debouce array
                 Debouncing_Array[row_pin_number][col_pin_number] += 1
-            else :
-                # If the pin is high, set the debounce to zero
-                Debouncing_Array[row_pin_number][col_pin_number] = 0
+                # check if debounce is > 2
+                if (Debouncing_Array[row_pin_number][col_pin_number] >= DEBOUCE_NUMBER):
+                    # If it passes the debouce test
+                    if ( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], int) ):
+                        # Add the keycode to the HID report
+                        keyboard._add_keycode_to_report(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
+                        # update state change
+                        state_change = True
+                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], MACRO_TYPE) ):
+                        # Fire off the macro
+                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run()
+                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], function_key) ):
+                        # time to run the layer code.
+                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(1)
+                    else:
+                        # unknwon type, pass
+                        pass
+            else:
+                # check if this key was just released
+                if(Debouncing_Array[row_pin_number][col_pin_number] != 0):
+                    # If it doesn't pass the debouce test, or is no longer pressed
+                    if ( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], int) ):
+                        # Remove the keycode to the HID report
+                        keyboard._remove_keycode_from_report(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
+                        # update state change
+                        state_change = True
+
+                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], MACRO_TYPE) ):
+                        # no need to fire off marco
+                        pass
+                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], function_key) ):
+                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(0)
+                    else:
+                        # unknwon type, pass
+                        pass
+
+                    # If the pin is high, set the debounce to zero
+                    Debouncing_Array[row_pin_number][col_pin_number] = 0
+
             # Inc col_pin_number
             row_pin_number += 1
         # Inc row_pin_number
         col_pin_number += 1
+        
         # Set col Low
         col.value = False   
 
-    # Debounce the Button
-    for row in range(0, len(Debouncing_Array), 1):
-        for col in range(0, len(Debouncing_Array[row]), 1):
-            if( Debouncing_Array[row][col] >= DEBOUCE_NUMBER ):
-                # If it passes the debouce test
-                if ( isinstance(Keyboard_Layout[LAYER][row][col], int) ):
-                    # Add the keycode to the HID report
-                    keyboard._add_keycode_to_report(Keyboard_Layout[LAYER][row][col])
-                elif( isinstance(Keyboard_Layout[LAYER][row][col], MACRO_TYPE) ):
-                    # Fire off the macro
-                    Keyboard_Layout[LAYER][row][col].run()
-                elif( isinstance(Keyboard_Layout[LAYER][row][col], function_key) ):
-                    # time to run the layer code.
-                    Keyboard_Layout[LAYER][row][col].run(1)
-                else:
-                    # unknwon type, pass
-                    pass
-            else:
-                # If it doesn't pass the debouce test, or is no longer pressed
-                if ( isinstance(Keyboard_Layout[LAYER][row][col], int) ):
-                    # Remove the keycode to the HID report
-                    keyboard._remove_keycode_from_report(Keyboard_Layout[LAYER][row][col])
-                elif( isinstance(Keyboard_Layout[LAYER][row][col], MACRO_TYPE) ):
-                    # no need to fire off marco
-                    pass
-                elif( isinstance(Keyboard_Layout[LAYER][row][col], function_key) ):
-                    Keyboard_Layout[LAYER][row][col].run(0)
-                else:
-                    # unknwon type, pass
-                    pass
+    if(state_change == True):
+        # Only if there is a HID Report change Send report
+        keyboard._keyboard_device.send_report(keyboard.report)
 
     # Debug LED OFF
     LED_Count += 1
     led.value = False
-
-    # Send HID Report
-    keyboard._keyboard_device.send_report(keyboard.report)
