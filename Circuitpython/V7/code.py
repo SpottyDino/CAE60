@@ -17,7 +17,6 @@ from adafruit_hid.consumer_control_code import ConsumerControlCode
 # Globals
 LED_BLINK = 50
 DEBOUCE_NUMBER = 2
-MATRIX_SCAN = 0.0001
 LAYER = 0
 ANIMATION_MODE = 4
 HID_CHECK = 0
@@ -197,9 +196,9 @@ Keyboard_Layout = [ [ [ Keycode.ESCAPE, Keycode.ONE, Keycode.TWO, Keycode.THREE,
                     
                     [ [ Keycode.GRAVE_ACCENT, Keycode.F1, Keycode.F2, Keycode.F3, Keycode.F4, Keycode.F5, Keycode.F6, Keycode.F7, Keycode.F8, Keycode.F9, Keycode.F10, Keycode.F11, Keycode.F12, None, None, Keycode.DELETE],
                       [ macro1(), None, None, Keycode.UP_ARROW, None, None, None, None, None, None, None, None, None, None, None, Keycode.PRINT_SCREEN ],
-                      [ None, None, Keycode.LEFT_ARROW, Keycode.DOWN_ARROW, Keycode.RIGHT_ARROW, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_INCREMENT],
+                      [ Keycode.KEYPAD_NUMLOCK, None, Keycode.LEFT_ARROW, Keycode.DOWN_ARROW, Keycode.RIGHT_ARROW, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_INCREMENT],
                       [ Keycode.LEFT_SHIFT, None, None, None, None, None, None, None, None, None, None, None, None, None, Keycode.UP_ARROW, ConsumerControlCode.VOLUME_DECREMENT],
-                      [ Keycode.LEFT_CONTROL, None, None, None, None, None, Keycode.SPACEBAR, None, None, None, None, None, Keycode.LEFT_ARROW, Keycode.DOWN_ARROW, Keycode.RIGHT_ARROW, function_key() ] ] ]
+                      [ Keycode.LEFT_CONTROL, Keycode.SCROLL_LOCK, None, None, None, None, Keycode.SPACEBAR, None, None, None, None, None, Keycode.LEFT_ARROW, Keycode.DOWN_ARROW, Keycode.RIGHT_ARROW, function_key() ] ] ]
 # The Physical Pins
 #                       COL0       COL1       COL2       COL3       COL4       COL5       COL6       COL7       COL8        COL9        COL10       COL11       COL12       COL13       COL14       COL15
 keyboard_cols = [ board.GP0, board.GP1, board.GP2, board.GP3, board.GP6, board.GP7, board.GP8, board.GP9, board.GP10, board.GP11, board.GP12, board.GP14, board.GP15, board.GP16, board.GP17, board.GP18 ]
@@ -377,44 +376,65 @@ rainbow_range = 0
 # Past Keyboard Report
 Past_Report = list(keyboard.report)
 
-#TODO 1) Implement CAPSLOCK functionality
-#TODO 2) Ranbow Animation - done (need to improve the timing / create and animation engine)
+# Past LED Report
+past_current_leds = b'0x16'
+
+# microcontroller timing
+current_timeing = time.monotonic()
+hid_check_timeing = 0.0
+animation_timeing = 0.0
+oled_refresh_timeing = 0.0
+
 #TODO 3) Volume Control (composite device)
-#TODO 4) Proper Animation looper
 #TODO 5) Backup Load if error with original 
 #TODO 6) Check if no key is press, perform a Release_All function, just in case a function key gets stuck.
+
+time.sleep(1)
 
 # Main Loop
 while True:
 
-    if(HID_CHECK == 10):
-        # reset the HID_CHECK
-        HID_CHECK = 0
+    #Update time
+    current_timeing = time.monotonic()
+
+    #HID Check loop
+    if(current_timeing >= (hid_check_timeing + 5.0)):
         # try and send a report, if it fails disable the LED's
         try:
             keyboard._keyboard_device.send_report(keyboard.report)
             # set neopixels to on
             NEO_Pixel_status = 1
+            # show the display, full brightness.
+            group.hidden = False
         except:
             # clear all pixels...
             pixels.fill((0, 0, 0))
             pixels.show()
             # set them to off
             NEO_Pixel_status = 0
+            # clear the display, disable it.
+            group.hidden = True
         
-    if(LED_Count == LED_BLINK):
-        # Debug LED ON
-        led.value = True
-        # increase the HID_CHECK
-        HID_CHECK += 1
-        # Reset the LED Count
-        LED_Count = 0
-        # refresh the display
-        display.refresh(target_frames_per_second=None)
-        
+        # reset the timing
+        hid_check_timeing = current_timeing
 
-        # check for animation (only if the Neopixels are active)
-        if((ANIMATION_MODE == 2) and (NEO_Pixel_status == 1)):
+    #Animation loop
+    if(current_timeing >= (animation_timeing + 0.08)):
+        #rainbow update animation
+        if((ANIMATION_MODE == 4) and (NEO_Pixel_status == 1)):
+            for i in range(num_pixels):
+                pixel_index = (i * 256 // num_pixels) + rainbow_range
+                pixels[i] = wheel(pixel_index & 255)
+            # show
+            pixels.show()
+            
+            if(rainbow_range < 255):
+                rainbow_range += 7
+            else:
+                rainbow_range = 0
+
+        # blue flip
+        elif((ANIMATION_MODE == 2) and (NEO_Pixel_status == 1)):
             # implement a nice periodic animation.
             for a in range(0, num_pixels, 1):
                 if(((a + Flip_flop) % 2) == 0):
@@ -427,7 +447,8 @@ while True:
             # display
             Flip_flop += 1
             pixels.show()
-        # check for animation (only if the Neopixels are active)
+        
+        # neon flip
         elif((ANIMATION_MODE == 3) and (NEO_Pixel_status == 1)):
             # implement a nice periodic animation.
             for a in range(0, num_pixels, 1):
@@ -441,20 +462,66 @@ while True:
             # display
             Flip_flop += 1
             pixels.show()
+        
+        # reset the timing
+        animation_timeing = current_timeing
 
-        #rainbow update animation
-        elif((ANIMATION_MODE == 4) and (NEO_Pixel_status == 1)):
-            for i in range(num_pixels):
-                pixel_index = (i * 256 // num_pixels) + rainbow_range
-                pixels[i] = wheel(pixel_index & 255)
-            # show
-            pixels.show()
-            
-            if(rainbow_range < 255):
-                rainbow_range += 15
+    if(current_timeing >= (oled_refresh_timeing + 0.4)):
+        # Debug LED ON
+        led.value = True
+        # Run done
+
+
+        # check the hid status of the report
+        current_leds = keyboard.led_status
+
+        # check that there is a change between the past and current
+        if(current_leds != past_current_leds):
+        
+            # check if the capslock is active
+            if(current_leds[0] & Keyboard.LED_CAPS_LOCK):
+                # show the caps on and hide the caps off.
+                group_cap_on.hidden = False
+                group_cap_off.hidden = True
             else:
-                rainbow_range = 0
+                # show the caps off and hide the caps on.
+                group_cap_on.hidden = True
+                group_cap_off.hidden = False
+            
+            # Check if the numlock key is active
+            if(current_leds[0] & Keyboard.LED_NUM_LOCK):
+                # show the caps on and hide the caps off.
+                group_num_on.hidden = False
+                group_num_off.hidden = True
+            else:
+                # show the num off and hide the num on.
+                group_num_on.hidden = True
+                group_num_off.hidden = False
 
+            # Check if the scrolllock key is active
+            if(current_leds[0] & Keyboard.LED_SCROLL_LOCK):
+                # show the caps on and hide the caps off.
+                group_scr_on.hidden = False
+                group_scr_off.hidden = True
+            else:
+                # show the scr off and hide the scr on.
+                group_scr_on.hidden = True
+                group_scr_off.hidden = False
+
+            # update the past status
+            past_current_leds = current_leds
+        
+        # refresh the display, no target
+        display.refresh(target_frames_per_second=None)
+
+    if(current_timeing >= (oled_refresh_timeing + 0.45)):
+        # Debug LED OFF
+        led.value = False
+
+        # update timeing
+        oled_refresh_timeing = current_timeing
+
+    # HID State change, reset at every refresh (save cycles)
     state_change = False
 
     # Scan Rows
@@ -531,14 +598,7 @@ while True:
         except:
             pass
 
-        # perform an animation
-        if(ANIMATION_MODE == 0):
-            pass
-        elif(ANIMATION_MODE == 1):
+        # perform a dynamic typing animation
+        if(ANIMATION_MODE == 1):
             pixels[random.randint(0, num_pixels-1)] = (random.randint(0,3)*80, random.randint(0,3)*80, random.randint(0,3)*80)
             pixels.show()
-
-
-    # Debug LED OFF
-    LED_Count += 1
-    led.value = False
