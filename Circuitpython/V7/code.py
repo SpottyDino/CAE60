@@ -4,18 +4,28 @@ import digitalio
 import usb_hid
 import neopixel
 import random
+import busio
+import displayio
+import adafruit_displayio_ssd1306
+import adafruit_imageload
+from adafruit_display_text import label
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
 from adafruit_hid.keycode import Keycode
 from adafruit_hid.consumer_control_code import ConsumerControlCode
 
 # Globals
-LED_BLINK = 70
+LED_BLINK = 50
 DEBOUCE_NUMBER = 2
 MATRIX_SCAN = 0.0001
 LAYER = 0
 ANIMATION_MODE = 4
 HID_CHECK = 0
+
+# display parameters
+display_width = 128
+display_height = 64
+NUM_OF_COLOR = 2
 
 class macro1():
     
@@ -101,8 +111,80 @@ def wheel(pos):
         b = int(255 - pos * 3)
     return (r, g, b) if ORDER in (neopixel.RGB, neopixel.GRB) else (r, g, b, 0)
 
-
 MACRO_TYPE = (macro1, macro2)
+
+print("Initialising the display")
+
+# Release the display, this is super important!
+displayio.release_displays()
+
+# Use for I2C, use the max frequency possible
+i2c = busio.I2C(scl=board.GP5, sda=board.GP4, frequency=1000000)
+
+# setup the I2C display, its an ssd1306 display
+display_bus = displayio.I2CDisplay(i2c, device_address=0x3C)
+display = adafruit_displayio_ssd1306.SSD1306(display_bus, width=display_width, height=display_height, auto_refresh=False)
+
+# Create the base group
+group = displayio.Group()
+
+# Load the images
+f = open("Images/cap_on.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_cap_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+# offset the image, so its not on the border
+group_cap_on.x = 2
+
+f = open("Images/cap_off.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_cap_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+# hide this, as you only want one image.
+group_cap_off.hidden = True
+group_cap_off.x = 2
+
+f = open("Images/num_on.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_num_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+group_num_on.x = 44
+
+f = open("Images/num_off.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_num_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+# offset the image + the width of the image
+group_num_off.x = 44
+group_num_off.hidden = True
+
+f = open("Images/scr_on.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_scr_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+group_scr_on.x = 86
+
+f = open("Images/scr_off.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_scr_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+group_scr_off.x = 86
+group_scr_off.hidden = True
+
+f = open("Images/arador_logo_final.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_logo = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+# move the image down.
+group_logo.x = 0
+group_logo.y = 20
+
+# add the groups to the main group
+group.append(group_cap_on)
+group.append(group_cap_off)
+
+group.append(group_num_on)
+group.append(group_num_off)
+
+group.append(group_scr_on)
+group.append(group_scr_off)
+
+group.append(group_logo)
+
+display.show(group)
 
 print("Initing device PINS, Key Matrix, Etc...")
 
@@ -151,7 +233,7 @@ led.switch_to_output()
 pixel_pin = board.GP13
 
 # The number of NeoPixels
-num_pixels = 22
+num_pixels = 17
 
 # The order of the pixel colors - RGB or GRB. Some NeoPixels have red and green reversed!
 # For RGBW NeoPixels, simply change the ORDER to RGBW or GRBW.
@@ -296,7 +378,7 @@ rainbow_range = 0
 Past_Report = list(keyboard.report)
 
 #TODO 1) Implement CAPSLOCK functionality
-#TODO 2) Ranbow Animation
+#TODO 2) Ranbow Animation - done (need to improve the timing / create and animation engine)
 #TODO 3) Volume Control (composite device)
 #TODO 4) Proper Animation looper
 #TODO 5) Backup Load if error with original 
@@ -327,6 +409,9 @@ while True:
         HID_CHECK += 1
         # Reset the LED Count
         LED_Count = 0
+        # refresh the display
+        display.refresh(target_frames_per_second=None)
+        
 
         # check for animation (only if the Neopixels are active)
         if((ANIMATION_MODE == 2) and (NEO_Pixel_status == 1)):

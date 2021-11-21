@@ -1,0 +1,99 @@
+import busio
+import displayio
+import board
+import terminalio
+import time
+import adafruit_displayio_ssd1306
+from adafruit_display_text import label
+from adafruit_display_shapes.roundrect import RoundRect
+from adafruit_display_shapes.rect import Rect
+import adafruit_imageload
+
+displayio.release_displays()
+
+display_width =128
+display_height = 64
+NUM_OF_COLOR = 2
+
+# Use for I2C
+i2c = busio.I2C (scl=board.GP5, sda=board.GP4, frequency=1000000)
+
+display_bus = displayio.I2CDisplay(i2c, device_address=0x3C)
+display = adafruit_displayio_ssd1306.SSD1306(display_bus, width=display_width, height=display_height)
+
+group = displayio.Group()
+
+f = open("Images/cap_on.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_cap_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+group_cap_on.x = 2
+
+f = open("Images/cap_off.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_cap_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+group_cap_off.hidden = True
+group_cap_off.x = 2
+
+f = open("Images/num_on.bmp", "rb")
+pic2 = displayio.OnDiskBitmap(f)
+group_num_on = displayio.TileGrid(pic2, pixel_shader=pic.pixel_shader)
+group_num_on.x = 44
+
+f = open("Images/num_off.bmp", "rb")
+pic2 = displayio.OnDiskBitmap(f)
+group_num_off = displayio.TileGrid(pic2, pixel_shader=pic.pixel_shader)
+group_num_off.x = 44
+group_num_off.hidden = True
+
+f = open("Images/scr_on.bmp", "rb")
+pic3 = displayio.OnDiskBitmap(f)
+group_scr_on = displayio.TileGrid(pic3, pixel_shader=pic.pixel_shader)
+group_scr_on.x = 86
+
+f = open("Images/scr_off.bmp", "rb")
+pic3 = displayio.OnDiskBitmap(f)
+group_scr_off = displayio.TileGrid(pic3, pixel_shader=pic.pixel_shader)
+group_scr_off.x = 86
+group_scr_off.hidden = True
+
+f = open("Images/arador_logo_final.bmp", "rb")
+pic3 = displayio.OnDiskBitmap(f)
+group_logo = displayio.TileGrid(pic3, pixel_shader=pic.pixel_shader)
+group_logo.x = 0
+group_logo.y = 20
+
+group.append(group_cap_on)
+group.append(group_cap_off)
+
+group.append(group_num_on)
+group.append(group_num_off)
+
+group.append(group_scr_on)
+group.append(group_scr_off)
+
+group.append(group_logo)
+
+display.show(group)
+
+count = 0
+
+while True:
+    if(count == 10):
+        group_scr_on.hidden = True
+        group_scr_off.hidden = False
+        group_cap_on.hidden = True
+        group_cap_off.hidden = False
+        group_num_on.hidden = True
+        group_num_off.hidden = False
+    elif(count == 20):
+        group_scr_on.hidden = False
+        group_scr_off.hidden = True
+        group_cap_on.hidden = False
+        group_cap_off.hidden = True
+        group_num_on.hidden = False
+        group_num_off.hidden = True
+        count = 0
+    
+    count += 1
+
+    time.sleep(.05)
