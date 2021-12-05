@@ -20,7 +20,7 @@ DEBOUCE_NUMBER = 2
 LAYER = 0
 ANIMATION_MODE = 4
 # oled timeout
-TIMEOUT = 100.0
+TIMEOUT = 50.0
 
 # display parameters
 display_width = 128
@@ -68,41 +68,50 @@ class macro2():
         print ("Macro2 Running")
         keyboard_layout.write("this is a test")
 
-class cc_key():
+class function_key_layer_hold():
 
-    def __init__(self):
-        print("Init CC")
+    def __init__(self, layer):
+        print("init function_key_layer_hold: " + str(layer))
+        self.layer = layer
 
-    def hold_layer(self, toggle):
+    def run(self, state):
         global LAYER
-        if(LAYER != toggle):
-            LAYER = toggle
+        if(state):
+            if(LAYER != self.layer):
+                LAYER = self.layer
+        else:
+            LAYER = 0
 
-class function_key():
-
-    def __init__(self):
-        print ("init function_key")
-        self.layer_lock = 0
+class function_key_layer_lock():
     
-    def lock_layer(self, value):
-        if( self.layer_lock == 0 and value == 1):
-            # Lock the layer
-            self.layer_lock = 1
-            self.toggle_layer(value)
-        elif( self.layer_lock == 1 and value == 0 ):
-            # unlock the layer
-            self.layer_lock = 0
-            self.toggle_layer(value)
-
+    def __init__(self, layer):
+        print ("init function_key_layer_lock: " + str(layer))
+        self.layer_lock = 0
+        self.single_activation = 0
+        self.layer = layer
+    
+    def run(self, state):
+        if(not self.single_activation):
+            # key has been pressed
+            if( (self.layer_lock == 0) and (state) ):
+                print("locking layer")
+                # Lock the layer
+                self.layer_lock = 1
+                self.single_activation = 1
+                self.toggle_layer(self.layer)
+            elif( (self.layer_lock == 1) and (state) ):
+                print("unlocking layer")
+                # unlock the layer
+                self.layer_lock = 0
+                self.toggle_layer(0)
+        else:
+            if( (self.layer_lock == 1) and (not state) ):
+                self.single_activation = 0
+        
     def toggle_layer(self, layer):
         # set the global layer
         global LAYER
         LAYER = layer
-
-    def hold_layer(self, toggle):
-        global LAYER
-        if(LAYER != toggle):
-            LAYER = toggle
 
 def wheel(pos):
     # Input a value 0 to 255 to get a color value.
@@ -125,7 +134,9 @@ def wheel(pos):
         b = int(255 - pos * 3)
     return (r, g, b) if ORDER in (neopixel.RGB, neopixel.GRB) else (r, g, b, 0)
 
+# instance definition
 MACRO_TYPE = (macro1, macro2)
+FUNCTION_TYPE = (function_key_layer_hold, function_key_layer_lock)
 
 print("Initialising the display")
 
@@ -237,19 +248,19 @@ Keyboard_Layout = [ [ [ Keycode.ESCAPE, Keycode.ONE, Keycode.TWO, Keycode.THREE,
                       [ Keycode.TAB, None, Keycode.Q, Keycode.W, Keycode.E, Keycode.R, Keycode.T, Keycode.Y, Keycode.U, Keycode.I, Keycode.O, Keycode.P, Keycode.LEFT_BRACKET, Keycode.RIGHT_BRACKET, Keycode.BACKSLASH, Keycode.END ],
                       [ Keycode.CAPS_LOCK , None, Keycode.A, Keycode.S, Keycode.D, Keycode.F, Keycode.G, Keycode.H, Keycode.J, Keycode.K, Keycode.L, Keycode.SEMICOLON, Keycode.QUOTE, Keycode.ENTER, None, Keycode.PAGE_UP ],
                       [ Keycode.LEFT_SHIFT, None, Keycode.Z, Keycode.X, Keycode.C, Keycode.V, Keycode.B, Keycode.N, Keycode.M, Keycode.COMMA, Keycode.PERIOD, Keycode.FORWARD_SLASH, None, Keycode.RIGHT_SHIFT, None, Keycode.PAGE_DOWN ],
-                      [ Keycode.LEFT_CONTROL, Keycode.LEFT_GUI, Keycode.LEFT_ALT, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, cc_key(), None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, function_key() ] ],
+                      [ Keycode.LEFT_CONTROL, Keycode.LEFT_GUI, Keycode.LEFT_ALT, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, function_key_layer_hold(2), None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, function_key_layer_hold(1) ] ],
                     
-                    [ [ Keycode.GRAVE_ACCENT, Keycode.F1, Keycode.F2, Keycode.F3, Keycode.F4, Keycode.F5, Keycode.F6, Keycode.F7, Keycode.F8, Keycode.F9, Keycode.F10, Keycode.F11, Keycode.F12, None, None, Keycode.DELETE],
+                    [ [ Keycode.GRAVE_ACCENT, function_key_layer_lock(1), Keycode.F2, Keycode.F3, Keycode.F4, Keycode.F5, Keycode.F6, Keycode.F7, Keycode.F8, Keycode.F9, Keycode.F10, Keycode.F11, Keycode.F12, None, None, Keycode.DELETE],
                       [ macro1(), None, None, Keycode.UP_ARROW, None, None, None, None, None, None, None, None, None, None, None, Keycode.PRINT_SCREEN ],
                       [ Keycode.KEYPAD_NUMLOCK, None, Keycode.LEFT_ARROW, Keycode.DOWN_ARROW, Keycode.RIGHT_ARROW, None, None, None, None, None, None, None, None, Keycode.INSERT, None, None],
-                      [ Keycode.LEFT_SHIFT, None, None, None, None, None, None, None, None, None, None, None, None, None, Keycode.UP_ARROW, None],
-                      [ Keycode.LEFT_CONTROL, Keycode.SCROLL_LOCK, None, None, None, None, Keycode.SPACEBAR, None, None, None, None, None, None, None, None, function_key() ] ],
+                      [ Keycode.LEFT_SHIFT, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+                      [ Keycode.LEFT_CONTROL, Keycode.SCROLL_LOCK, None, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, None, None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, function_key_layer_hold(1) ] ],
                       
                     [ [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_PREVIOUS_TRACK],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_NEXT_TRACK],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_INCREMENT],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_DECREMENT],
-                      [ None, None, None, None, None, None, ConsumerControlCode.PLAY_PAUSE, None, None, None, None, cc_key(), None, None, None, ConsumerControlCode.MUTE] ] ]
+                      [ None, None, None, None, None, None, ConsumerControlCode.PLAY_PAUSE, None, None, None, None, function_key_layer_hold(2), None, None, None, ConsumerControlCode.MUTE] ] ]
 
 # The Physical Pins
 #                       COL0       COL1       COL2       COL3       COL4       COL5       COL6       COL7       COL8        COL9        COL10       COL11       COL12       COL13       COL14       COL15
@@ -263,7 +274,7 @@ keyboard_rows_array = []
 
 # Make all col pin objects inputs with pullups.
 for pin in keyboard_cols:
-    key_pin = digitalio.DigitalInOut(pin)
+    key_pin = digitalio.DigitalInOut(pin)           
     key_pin.direction = digitalio.Direction.OUTPUT
     key_pin.value = False
     keyboard_cols_array.append(key_pin)
@@ -450,20 +461,20 @@ display_logo = 0
 # Macro Functionality
 macro_lock = 1
 
+#TODO 1) Stop error when more than 6 keys are pressed.
 #TODO 5) Backup Load if error with original 
 #TODO 6) Implement a new way of hanling excalated function key layers so they do not get stuck.
 #           1) keep a list of keys that are pressed when escalated
 #           2) When the function key is release, make sure that all keys are removed from the report
 #           3) This tends to happen with things like print screen and ctrl keys most offten, reproduce.
 #TODO 10) Layer Lock functionality
-#           1) lock a specific layer
 #           2) show on the screen which layer is locked.
-#           3) have multiple layers that can be locked.
 #TODO 11) Keyboard managment functions 
 #           1) disable the lighting
 #           2) disable the oled
 #           3) change the lighting animation
 #           4) speed mode (disable all timing / animation and focus on pure cycles)
+#           5) Reload (disable auto-reload by default, force manual reload)
 
 # debug run counter (aiming for about 100 cycles per second)
 runs = 0
@@ -660,14 +671,9 @@ while True:
                             #cc.send(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
                             cc.send(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
                             cc_lock = 1
-                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], function_key) ):
-                        # time to run the layer code.
-                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].hold_layer(1)
-                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], cc_key) ):
-                        # time to run the layer code.
-                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].hold_layer(2)
+                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], FUNCTION_TYPE) ):
+                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(1)
                     elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], MACRO_TYPE)):
-                        # start state of the macro
                         Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(1)
                     else:
                         # unknwon type, pass
@@ -688,14 +694,9 @@ while True:
                         else:
                             # this is for the CC report
                             cc_lock = 0
-                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], function_key) ):
-                        # turn off the layer code... this should also remove all layer keys from the report.
-                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].hold_layer(0)
-                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], cc_key) ):
-                        # time to run the layer code.
-                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].hold_layer(0)
+                    elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], FUNCTION_TYPE) ):
+                        Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(0)
                     elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], MACRO_TYPE)):
-                        # Finish state of the macro
                         Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(0)
                     else:
                         # unknwon type, pass
