@@ -8,16 +8,20 @@ import random
 import busio
 import displayio
 import adafruit_displayio_ssd1306
+import gc
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
 from adafruit_hid.keycode import Keycode
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.consumer_control_code import ConsumerControlCode
 
+gc.collect()
+
 # Globals
 LED_BLINK = 50
 DEBOUCE_NUMBER = 2
 LAYER = 0
+LAYER_LOCK = 0
 ANIMATION_MODE = 4
 # oled timeout
 TIMEOUT = 50.0
@@ -26,6 +30,9 @@ TIMEOUT = 50.0
 display_width = 128
 display_height = 64
 NUM_OF_COLOR = 2
+
+# led stuff
+PIXELS_OFF = 0
 
 class macro1():
     
@@ -68,6 +75,49 @@ class macro2():
         print ("Macro2 Running")
         keyboard_layout.write("this is a test")
 
+class lighting_mode():
+
+    def __init__(self, direction):
+        print("Next / Prev Lighting init")
+        self.single_activation = 0
+        self.direction = direction
+
+    def run(self, state):
+        global ANIMATION_MODE
+        if(not self.single_activation):
+            if(state):
+                self.single_activation = 1
+                ANIMATION_MODE += self.direction
+        else:
+            if(not state):
+                self.single_activation = 0
+
+class lighting_toggle_on_off():
+
+    def __init__(self):
+        print("Enable / Disable Lighting init")
+        self.single_activation = 0
+
+    def run(self, state):
+        global NEO_Pixel_status
+        global pixels
+        global PIXELS_OFF
+        if(not self.single_activation):
+            if(state):
+                self.single_activation = 1
+                if(NEO_Pixel_status == 1):
+                    # clear all pixels...
+                    pixels.fill((0, 0, 0))
+                    pixels.show()
+                    # set them to off
+                    NEO_Pixel_status = 0
+                    PIXELS_OFF = 1
+                else:
+                    NEO_Pixel_status = 1
+        else:
+            if(not state):
+                self.single_activation = 0
+
 class function_key_layer_hold():
 
     def __init__(self, layer):
@@ -76,10 +126,12 @@ class function_key_layer_hold():
 
     def run(self, state):
         global LAYER
+        global LAYER_LOCK
         if(state):
+            LAYER_LOCK = 0
             if(LAYER != self.layer):
                 LAYER = self.layer
-        else:
+        elif(not LAYER_LOCK):
             LAYER = 0
 
 class function_key_layer_lock():
@@ -91,6 +143,7 @@ class function_key_layer_lock():
         self.layer = layer
     
     def run(self, state):
+        global LAYER_LOCK
         if(not self.single_activation):
             # key has been pressed
             if( (self.layer_lock == 0) and (state) ):
@@ -99,11 +152,17 @@ class function_key_layer_lock():
                 self.layer_lock = 1
                 self.single_activation = 1
                 self.toggle_layer(self.layer)
+                LAYER_LOCK = self.layer
+                group_lock_on.hidden = False
+                display.refresh(target_frames_per_second=None)
             elif( (self.layer_lock == 1) and (state) ):
                 print("unlocking layer")
                 # unlock the layer
                 self.layer_lock = 0
                 self.toggle_layer(0)
+                LAYER_LOCK = 0
+                group_lock_on.hidden = True
+                display.refresh(target_frames_per_second=None)
         else:
             if( (self.layer_lock == 1) and (not state) ):
                 self.single_activation = 0
@@ -136,7 +195,7 @@ def wheel(pos):
 
 # instance definition
 MACRO_TYPE = (macro1, macro2)
-FUNCTION_TYPE = (function_key_layer_hold, function_key_layer_lock)
+FUNCTION_TYPE = (function_key_layer_hold, function_key_layer_lock, lighting_toggle_on_off)
 
 print("Initialising the display")
 
@@ -163,35 +222,29 @@ group_cap_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
 # offset the image, so its not on the border
 group_cap_on.x = 2
 
-# f = open("Images/cap_off.bmp", "rb")
-# pic = displayio.OnDiskBitmap(f)
-# group_cap_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
-# # hide this, as you only want one image.
-# group_cap_off.hidden = True
-# group_cap_off.x = 2
+del pic
 
 f = open("Images/num_on.bmp", "rb")
 pic = displayio.OnDiskBitmap(f)
 group_num_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
 group_num_on.x = 44
 
-# f = open("Images/num_off.bmp", "rb")
-# pic = displayio.OnDiskBitmap(f)
-# group_num_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
-# # offset the image + the width of the image
-# group_num_off.x = 44
-# group_num_off.hidden = True
+del pic
 
 f = open("Images/scr_on.bmp", "rb")
 pic = displayio.OnDiskBitmap(f)
 group_scr_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
 group_scr_on.x = 86
 
-# f = open("Images/scr_off.bmp", "rb")
-# pic = displayio.OnDiskBitmap(f)
-# group_scr_off = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
-# group_scr_off.x = 86
-# group_scr_off.hidden = True
+del pic
+
+f = open("Images/lock_on.bmp", "rb")
+pic = displayio.OnDiskBitmap(f)
+group_lock_on = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
+group_lock_on.x = 86
+group_lock_on.hidden = True
+
+del pic
 
 f = open("Images/logo.bmp", "rb")
 pic = displayio.OnDiskBitmap(f)
@@ -200,7 +253,7 @@ group_logo = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
 group_logo.x = 0
 group_logo.y = 18
 
-group.append(group_logo)
+del pic
 
 """
 ### BONGO CAT ####
@@ -223,14 +276,11 @@ group.append(group_logo_2)
 """
 
 # add the groups to the main group
+group.append(group_logo)
 group.append(group_cap_on)
-# group.append(group_cap_off)
-
 group.append(group_num_on)
-# group.append(group_num_off)
-
 group.append(group_scr_on)
-# group.append(group_scr_off)
+group.append(group_lock_on)
 
 display.show(group)
 
@@ -250,13 +300,13 @@ Keyboard_Layout = [ [ [ Keycode.ESCAPE, Keycode.ONE, Keycode.TWO, Keycode.THREE,
                       [ Keycode.LEFT_SHIFT, None, Keycode.Z, Keycode.X, Keycode.C, Keycode.V, Keycode.B, Keycode.N, Keycode.M, Keycode.COMMA, Keycode.PERIOD, Keycode.FORWARD_SLASH, None, Keycode.RIGHT_SHIFT, None, Keycode.PAGE_DOWN ],
                       [ Keycode.LEFT_CONTROL, Keycode.LEFT_GUI, Keycode.LEFT_ALT, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, function_key_layer_hold(2), None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, function_key_layer_hold(1) ] ],
                     
-                    [ [ Keycode.GRAVE_ACCENT, function_key_layer_lock(1), Keycode.F2, Keycode.F3, Keycode.F4, Keycode.F5, Keycode.F6, Keycode.F7, Keycode.F8, Keycode.F9, Keycode.F10, Keycode.F11, Keycode.F12, None, None, Keycode.DELETE],
+                    [ [ Keycode.GRAVE_ACCENT, Keycode.F1, Keycode.F2, Keycode.F3, Keycode.F4, Keycode.F5, Keycode.F6, Keycode.F7, Keycode.F8, Keycode.F9, Keycode.F10, Keycode.F11, Keycode.F12, None, None, Keycode.DELETE],
                       [ macro1(), None, None, Keycode.UP_ARROW, None, None, None, None, None, None, None, None, None, None, None, Keycode.PRINT_SCREEN ],
                       [ Keycode.KEYPAD_NUMLOCK, None, Keycode.LEFT_ARROW, Keycode.DOWN_ARROW, Keycode.RIGHT_ARROW, None, None, None, None, None, None, None, None, Keycode.INSERT, None, None],
                       [ Keycode.LEFT_SHIFT, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
                       [ Keycode.LEFT_CONTROL, Keycode.SCROLL_LOCK, None, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, None, None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, function_key_layer_hold(1) ] ],
                       
-                    [ [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_PREVIOUS_TRACK],
+                    [ [ lighting_toggle_on_off(), None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_PREVIOUS_TRACK],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_NEXT_TRACK],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_INCREMENT],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_DECREMENT],
@@ -380,7 +430,6 @@ except (ImportError, SyntaxError):
     pixels.show()
     time.sleep(.1)
 
-
 print(Keyboard_Layout)
 
 print("Check Device Ready!")
@@ -414,11 +463,11 @@ led.value = False
 print("Starting Main Loop")
 
 # Debouncing Array
-Debouncing_Array = [[ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+Debouncing_Array = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 
 # Status LED
 LED_Count = 0
@@ -432,10 +481,12 @@ rainbow_range = 0
 
 # Past Keyboard Report
 Past_Report = list(keyboard.report)
+
 # Past CC report
 cc_lock = 0
 
 # Past LED Report
+current_leds = b'0x00'
 past_current_leds = b'0x16'
 
 # microcontroller timing
@@ -461,16 +512,19 @@ display_logo = 0
 # Macro Functionality
 macro_lock = 1
 
+# Keyboard Variables
+col_pin_number = 0
+row_pin_number = 0
+state_change = False
+
 #TODO 1) Stop error when more than 6 keys are pressed.
 #TODO 5) Backup Load if error with original 
 #TODO 6) Implement a new way of hanling excalated function key layers so they do not get stuck.
 #           1) keep a list of keys that are pressed when escalated
 #           2) When the function key is release, make sure that all keys are removed from the report
 #           3) This tends to happen with things like print screen and ctrl keys most offten, reproduce.
-#TODO 10) Layer Lock functionality
-#           2) show on the screen which layer is locked.
+#TODO 10) Improve Layer Lock functionality
 #TODO 11) Keyboard managment functions 
-#           1) disable the lighting
 #           2) disable the oled
 #           3) change the lighting animation
 #           4) speed mode (disable all timing / animation and focus on pure cycles)
@@ -489,11 +543,16 @@ while True:
     if(current_timeing >= (hid_check_timeing + 5.0)):
         # try and send a report, if it fails disable the LED's
         print(runs)
+        print(id(runs))
+        print(gc.mem_alloc())
+        print(gc.mem_free())
         runs = 0
         try:
             keyboard._keyboard_device.send_report(keyboard.report)
-            # set neopixels to on, resume animations.
-            NEO_Pixel_status = 1
+            # set neopixels to on, resume animations, only if pixel lock isn't on
+            if(not PIXELS_OFF):
+                NEO_Pixel_status = 1
+
             # show the display (only if the timeout hasn't expired)
             if(current_timeing <= oled_timeout_setting):
                 # the oled is still active
@@ -668,8 +727,9 @@ while True:
                                 state_change = True
                         elif(cc_lock != 1):
                             # this is for the CC report
-                            #cc.send(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
                             cc.send(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
+                            # Update the oled timeout
+                            oled_timeout_setting = current_timeing + TIMEOUT
                             cc_lock = 1
                     elif( isinstance(Keyboard_Layout[LAYER][row_pin_number][col_pin_number], FUNCTION_TYPE) ):
                         Keyboard_Layout[LAYER][row_pin_number][col_pin_number].run(1)
@@ -707,9 +767,10 @@ while True:
 
             # Inc col_pin_number
             row_pin_number += 1
+        
         # Inc row_pin_number
         col_pin_number += 1
-        
+
         # Set col Low
         col.value = False   
 
