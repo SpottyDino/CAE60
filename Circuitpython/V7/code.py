@@ -2,20 +2,18 @@
 import time
 import board
 import digitalio
-import usb_hid
 import neopixel
-import random
-import busio
 import displayio
 import adafruit_displayio_ssd1306
-import gc
+import supervisor
+from random import randint
+from busio import I2C
+from usb_hid import devices
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
 from adafruit_hid.keycode import Keycode
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.consumer_control_code import ConsumerControlCode
-
-gc.collect()
 
 # Globals
 LED_BLINK = 50
@@ -31,8 +29,12 @@ display_width = 128
 display_height = 64
 NUM_OF_COLOR = 2
 
-# led stuff
+# led stuffddd
 PIXELS_OFF = 0
+
+#RGB Stuff
+ANIMATION_MODE_TIMEING = 0.0
+MODES = [1,2,3,4]
 
 class macro1():
     
@@ -75,6 +77,14 @@ class macro2():
         print ("Macro2 Running")
         keyboard_layout.write("this is a test")
 
+class board_reload():
+
+    def __init__(self):
+        print("Board Reload init")
+
+    def run(self, state):
+        supervisor.reload() 
+
 class lighting_mode():
 
     def __init__(self, direction):
@@ -84,10 +94,15 @@ class lighting_mode():
 
     def run(self, state):
         global ANIMATION_MODE
+        global MODES
         if(not self.single_activation):
             if(state):
                 self.single_activation = 1
-                ANIMATION_MODE += self.direction
+                try:
+                    ANIMATION_MODE = MODES[(ANIMATION_MODE - 1) + self.direction]
+                except:
+                    ANIMATION_MODE = 1
+                change_animation_timeing()
         else:
             if(not state):
                 self.single_activation = 0
@@ -193,9 +208,25 @@ def wheel(pos):
         b = int(255 - pos * 3)
     return (r, g, b) if ORDER in (neopixel.RGB, neopixel.GRB) else (r, g, b, 0)
 
+def change_animation_timeing():
+
+    global ANIMATION_MODE_TIMEING
+    # set the timing
+    if(ANIMATION_MODE == 4):
+        ANIMATION_MODE_TIMEING = 0.05
+    elif(ANIMATION_MODE == 1):
+        ANIMATION_MODE_TIMEING = 10.0
+    elif(ANIMATION_MODE == 2):
+        ANIMATION_MODE_TIMEING = 0.5
+    elif(ANIMATION_MODE == 3):
+        ANIMATION_MODE_TIMEING = 0.5
+
 # instance definition
 MACRO_TYPE = (macro1, macro2)
-FUNCTION_TYPE = (function_key_layer_hold, function_key_layer_lock, lighting_toggle_on_off)
+FUNCTION_TYPE = (function_key_layer_hold, function_key_layer_lock, lighting_toggle_on_off, lighting_mode, board_reload)
+
+print("disabling the auto reload")
+supervisor.disable_autoreload()
 
 print("Initialising the display")
 
@@ -203,7 +234,7 @@ print("Initialising the display")
 displayio.release_displays()
 
 # Use for I2C, use the max frequency possible
-i2c = busio.I2C(scl=board.GP5, sda=board.GP4, frequency=1000000)
+i2c = I2C(scl=board.GP5, sda=board.GP4, frequency=1000000)
 
 # setup the I2C display, its an ssd1306 display
 display_bus = displayio.I2CDisplay(i2c, device_address=0x3C)
@@ -306,8 +337,8 @@ Keyboard_Layout = [ [ [ Keycode.ESCAPE, Keycode.ONE, Keycode.TWO, Keycode.THREE,
                       [ Keycode.LEFT_SHIFT, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
                       [ Keycode.LEFT_CONTROL, Keycode.SCROLL_LOCK, None, None, None, None, Keycode.SPACEBAR, None, None, None, Keycode.RIGHT_ALT, None, None, Keycode.APPLICATION, Keycode.RIGHT_CONTROL, function_key_layer_hold(1) ] ],
                       
-                    [ [ lighting_toggle_on_off(), None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_PREVIOUS_TRACK],
-                      [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_NEXT_TRACK],
+                    [ [ board_reload(), None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_PREVIOUS_TRACK],
+                      [ None, None, lighting_mode(-1), lighting_toggle_on_off(), lighting_mode(1), None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.SCAN_NEXT_TRACK],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_INCREMENT],
                       [ None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, ConsumerControlCode.VOLUME_DECREMENT],
                       [ None, None, None, None, None, None, ConsumerControlCode.PLAY_PAUSE, None, None, None, None, function_key_layer_hold(2), None, None, None, ConsumerControlCode.MUTE] ] ]
@@ -393,45 +424,6 @@ except (ImportError, SyntaxError):
     pixels.show()
     time.sleep(.1)
 
-try:
-    import blank2
-
-    # Boot the keyboard, Flash green a few times
-    pixels.fill((0, 255, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((0, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((0, 255, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((0, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((0, 255, 0))
-    pixels.show()
-    time.sleep(.1)
-
-except (ImportError, SyntaxError):
-    pixels.fill((255, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((0, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((255, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((0, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-    pixels.fill((255, 0, 0))
-    pixels.show()
-    time.sleep(.1)
-
-print(Keyboard_Layout)
-
 print("Check Device Ready!")
 
 while(True):
@@ -443,10 +435,10 @@ while(True):
 
     try:
         # start the USB Driver
-        keyboard = Keyboard(usb_hid.devices)
+        keyboard = Keyboard(devices)
         keyboard_layout = KeyboardLayoutUS(keyboard)
         # start the CC
-        cc = ConsumerControl(usb_hid.devices)
+        cc = ConsumerControl(devices)
         # exit the loop
         break
     except:
@@ -493,24 +485,15 @@ past_current_leds = b'0x16'
 current_timeing = time.monotonic()
 hid_check_timeing = 0.0
 animation_timeing = 0.0
-specific_animation_timing = 0.0
 oled_refresh_timeing = 0.0
 oled_timeout_setting = current_timeing + TIMEOUT 
 
-# set the timing
-if(ANIMATION_MODE == 4):
-    specific_animation_timing = 0.05
-elif(ANIMATION_MODE == 2):
-    specific_animation_timing = 0.5
-elif(ANIMATION_MODE == 3):
-    specific_animation_timing = 0.5
+#set timeing
+change_animation_timeing()
 
 # bongo_cat
 bongo_cat_timeing = 0.0
 display_logo = 0
-
-# Macro Functionality
-macro_lock = 1
 
 # Keyboard Variables
 col_pin_number = 0
@@ -526,9 +509,6 @@ state_change = False
 #TODO 10) Improve Layer Lock functionality
 #TODO 11) Keyboard managment functions 
 #           2) disable the oled
-#           3) change the lighting animation
-#           4) speed mode (disable all timing / animation and focus on pure cycles)
-#           5) Reload (disable auto-reload by default, force manual reload)
 
 # debug run counter (aiming for about 100 cycles per second)
 runs = 0
@@ -543,9 +523,6 @@ while True:
     if(current_timeing >= (hid_check_timeing + 5.0)):
         # try and send a report, if it fails disable the LED's
         print(runs)
-        print(id(runs))
-        print(gc.mem_alloc())
-        print(gc.mem_free())
         runs = 0
         try:
             keyboard._keyboard_device.send_report(keyboard.report)
@@ -577,7 +554,7 @@ while True:
         hid_check_timeing = current_timeing
 
     #Animation loop
-    if(current_timeing >= (animation_timeing + specific_animation_timing)):
+    if(current_timeing >= (animation_timeing + ANIMATION_MODE_TIMEING)):
         #rainbow update animation
         if((ANIMATION_MODE == 4) and (NEO_Pixel_status == 1)):
             for i in range(num_pixels):
@@ -639,31 +616,25 @@ while True:
             if(current_leds[0] & Keyboard.LED_CAPS_LOCK):
                 # show the caps on and hide the caps off.
                 group_cap_on.hidden = False
-                #group_cap_off.hidden = True
             else:
                 # show the caps off and hide the caps on.
                 group_cap_on.hidden = True
-                #group_cap_off.hidden = False
             
             # Check if the numlock key is active
             if(current_leds[0] & Keyboard.LED_NUM_LOCK):
                 # show the caps on and hide the caps off.
                 group_num_on.hidden = False
-                #group_num_off.hidden = True
             else:
                 # show the num off and hide the num on.
                 group_num_on.hidden = True
-                #group_num_off.hidden = False
 
             # Check if the scrolllock key is active
             if(current_leds[0] & Keyboard.LED_SCROLL_LOCK):
                 # show the caps on and hide the caps off.
                 group_scr_on.hidden = False
-                #group_scr_off.hidden = True
             else:
                 # show the scr off and hide the scr on.
                 group_scr_on.hidden = True
-                #group_scr_off.hidden = False
 
             # update the past status
             past_current_leds = current_leds
@@ -698,6 +669,8 @@ while True:
 
     # HID State change, reset at every refresh (save cycles)
     state_change = False
+
+    # do something using direct access to the array of col and row....
 
     # Scan Rows
     col_pin_number = 0
@@ -787,7 +760,7 @@ while True:
 
         # perform a dynamic typing animation
         if(ANIMATION_MODE == 1):
-            pixels[random.randint(0, num_pixels-1)] = (random.randint(0,3)*80, random.randint(0,3)*80, random.randint(0,3)*80)
+            pixels[randint(0, num_pixels-1)] = (randint(0,3)*80, randint(0,3)*80, randint(0,3)*80)
             pixels.show()
 
     runs += 1
