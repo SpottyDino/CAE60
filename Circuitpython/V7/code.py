@@ -20,7 +20,7 @@ LED_BLINK = 50
 DEBOUCE_NUMBER = 2
 LAYER = 0
 LAYER_LOCK = 0
-ANIMATION_MODE = 4
+ANIMATION_MODE = 5
 # oled timeout
 TIMEOUT = 50.0
 
@@ -34,7 +34,7 @@ PIXELS_OFF = 0
 
 #RGB Stuff
 ANIMATION_MODE_TIMEING = 0.0
-MODES = [1,2,3,4]
+MODES = [1,2,3,4,5]
 
 class macro1():
     
@@ -129,6 +129,7 @@ class lighting_toggle_on_off():
                     PIXELS_OFF = 1
                 else:
                     NEO_Pixel_status = 1
+                    PIXELS_OFF = 0
         else:
             if(not state):
                 self.single_activation = 0
@@ -220,6 +221,8 @@ def change_animation_timeing():
         ANIMATION_MODE_TIMEING = 0.5
     elif(ANIMATION_MODE == 3):
         ANIMATION_MODE_TIMEING = 0.5
+    elif(ANIMATION_MODE == 5):
+        ANIMATION_MODE_TIMEING = 0.3
 
 # instance definition
 MACRO_TYPE = (macro1, macro2)
@@ -288,14 +291,14 @@ del pic
 
 """
 ### BONGO CAT ####
-f = open("Images/logo2.bmp", "rb")
+f = open("Images/bongo_2.bmp", "rb")
 pic = displayio.OnDiskBitmap(f)
 group_logo_1 = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
 # move the image down.
 group_logo_1.x = 0
 group_logo_1.y = 18
 
-f = open("Images/logo3.bmp", "rb")
+f = open("Images/bongo_3.bmp", "rb")
 pic = displayio.OnDiskBitmap(f)
 group_logo_2 = displayio.TileGrid(pic, pixel_shader=pic.pixel_shader)
 # move the image down.
@@ -502,13 +505,10 @@ state_change = False
 
 #TODO 1) Stop error when more than 6 keys are pressed.
 #TODO 5) Backup Load if error with original 
-#TODO 6) Implement a new way of hanling excalated function key layers so they do not get stuck.
-#           1) keep a list of keys that are pressed when escalated
-#           2) When the function key is release, make sure that all keys are removed from the report
-#           3) This tends to happen with things like print screen and ctrl keys most offten, reproduce.
 #TODO 10) Improve Layer Lock functionality
 #TODO 11) Keyboard managment functions 
 #           2) disable the oled
+#TODO 12) Improve the way keys are removed when function key is released
 
 # debug run counter (aiming for about 100 cycles per second)
 runs = 0
@@ -597,6 +597,23 @@ while True:
             # display
             Flip_flop += 1
             pixels.show()
+
+        # Christmas
+        elif((ANIMATION_MODE == 5) and (NEO_Pixel_status == 1)):
+            Flip_flop = 0
+            # implement a nice periodic animation.
+            for a in range(0, num_pixels, 1):
+                if(Flip_flop == 0):
+                    pixels[a] = (255, 0, 0)
+                    Flip_flop += 1
+                elif(Flip_flop == 1):
+                    pixels[a] = (255, 255, 255)
+                    Flip_flop += 1
+                else:
+                    pixels[a] = (0, 255, 0)
+                    Flip_flop = 0
+
+            pixels.show()
         
         # reset the timing
         animation_timeing = current_timeing
@@ -648,7 +665,7 @@ while True:
 
         # update timeing
         oled_refresh_timeing = current_timeing
-
+        
     """
     if(current_timeing >= (bongo_cat_timeing + 2.0)):
         
@@ -666,6 +683,7 @@ while True:
         # refresh the display, no target
         display.refresh(target_frames_per_second=None)
     """
+
 
     # HID State change, reset at every refresh (save cycles)
     state_change = False
@@ -719,6 +737,9 @@ while True:
                         # Remove the keycode to the HID report
                         if(LAYER != 2):
                             keyboard._remove_keycode_from_report(Keyboard_Layout[LAYER][row_pin_number][col_pin_number])
+                            # remove keycodes from all layers (just incase, there needs to be a better way of doing this).
+                            if ( isinstance(Keyboard_Layout[1][row_pin_number][col_pin_number], int) ):
+                                keyboard._remove_keycode_from_report(Keyboard_Layout[1][row_pin_number][col_pin_number])
                             # update state change
                             if( list(keyboard.report) == Past_Report):
                                 pass
